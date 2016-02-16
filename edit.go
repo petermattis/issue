@@ -137,7 +137,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 			if isBulk {
 				addLabels, removeLabels = diffList2(line, "Labels:", getLabelNames(old.Labels))
 			} else {
-				edit.Labels = *diffList(line, "Labels:", getLabelNames(old.Labels))
+				edit.Labels = diffList(line, "Labels:", getLabelNames(old.Labels))
 			}
 
 		case strings.HasPrefix(line, "Milestone:"):
@@ -471,8 +471,10 @@ func bulkWriteIssue(old *github.Issue, updated []byte, status func(string)) (ids
 		}
 		// Check rate limits here (in contrast to everywhere else in this program)
 		// to avoid needless failure halfway through the loop.
-		for client.Rate.Limit > 0 && client.Rate.Remaining == 0 {
-			delta := (client.Rate.Reset.Sub(time.Now())/time.Minute + 2) * time.Minute
+		// for client.Rate.Limit > 0 && client.Rate.Remaining == 0 {
+		// delta := (client.Rate.Reset.Sub(time.Now())/time.Minute + 2) * time.Minute
+		{
+			delta := time.Duration(0)
 			if delta < 0 {
 				delta = 2 * time.Minute
 			}
