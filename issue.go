@@ -209,6 +209,7 @@ using these data structures:
 		State     string
 		Assignee  string
 		Closed    time.Time
+		Updated   time.Time
 		Labels    []string
 		Milestone string
 		URL       string
@@ -216,6 +217,7 @@ using these data structures:
 		Created   time.Time
 		Text      string
 		Comments  []*Comment
+		Assignees []string
 	}
 
 	type Comment struct {
@@ -665,6 +667,14 @@ func getUserLogin(x *github.User) string {
 	return *x.Login
 }
 
+func getUserLogins(ar []*github.User) []string {
+	res := make([]string, len(ar))
+	for i, x := range ar {
+		res[i] = getUserLogin(x)
+	}
+	return res
+}
+
 func getTime(x *time.Time) time.Time {
 	if x == nil {
 		return time.Time{}
@@ -748,8 +758,10 @@ type Issue struct {
 	URL       string
 	Reporter  string
 	Created   time.Time
+	Updated   time.Time
 	Text      string
 	Comments  []*Comment
+	Assignees []string
 }
 
 type Comment struct {
@@ -793,8 +805,10 @@ func toJSON(issue *github.Issue) *Issue {
 		URL:       fmt.Sprintf("https://github.com/%s/%s/issues/%d\n", projectOwner, projectRepo, getInt(issue.Number)),
 		Reporter:  getUserLogin(issue.User),
 		Created:   getTime(issue.CreatedAt),
+		Updated:   getTime(issue.UpdatedAt),
 		Text:      getString(issue.Body),
 		Comments:  []*Comment{},
+		Assignees: getUserLogins(issue.Assignees),
 	}
 	if j.Labels == nil {
 		j.Labels = []string{}
