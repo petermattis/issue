@@ -218,7 +218,7 @@ using these data structures:
 		Text      string
 		Comments  []*Comment
 		Assignees []string
-    NumComments int
+    		NumComments int
 	}
 
 	type Comment struct {
