@@ -218,6 +218,7 @@ using these data structures:
 		Text      string
 		Comments  []*Comment
 		Assignees []string
+    NumComments int
 	}
 
 	type Comment struct {
@@ -747,21 +748,22 @@ func bulkReadIssuesCached(ids []int) ([]*github.Issue, error) {
 // If you make changes to the structs, copy them back into the doc comment.
 
 type Issue struct {
-	Number    int
-	Ref       string
-	Title     string
-	State     string
-	Assignee  string
-	Closed    time.Time
-	Labels    []string
-	Milestone string
-	URL       string
-	Reporter  string
-	Created   time.Time
-	Updated   time.Time
-	Text      string
-	Comments  []*Comment
-	Assignees []string
+	Number      int
+	Ref         string
+	Title       string
+	State       string
+	Assignee    string
+	Closed      time.Time
+	Labels      []string
+	Milestone   string
+	URL         string
+	Reporter    string
+	Created     time.Time
+	Updated     time.Time
+	Text        string
+	Comments    []*Comment
+	Assignees   []string
+	NumComments int
 }
 
 type Comment struct {
@@ -794,21 +796,22 @@ func showJSONList(all []*github.Issue) {
 
 func toJSON(issue *github.Issue) *Issue {
 	j := &Issue{
-		Number:    getInt(issue.Number),
-		Ref:       fmt.Sprintf("%s/%s#%d\n", projectOwner, projectRepo, getInt(issue.Number)),
-		Title:     getString(issue.Title),
-		State:     getString(issue.State),
-		Assignee:  getUserLogin(issue.Assignee),
-		Closed:    getTime(issue.ClosedAt),
-		Labels:    getLabelNames(issue.Labels),
-		Milestone: getMilestoneTitle(issue.Milestone),
-		URL:       fmt.Sprintf("https://github.com/%s/%s/issues/%d\n", projectOwner, projectRepo, getInt(issue.Number)),
-		Reporter:  getUserLogin(issue.User),
-		Created:   getTime(issue.CreatedAt),
-		Updated:   getTime(issue.UpdatedAt),
-		Text:      getString(issue.Body),
-		Comments:  []*Comment{},
-		Assignees: getUserLogins(issue.Assignees),
+		Number:      getInt(issue.Number),
+		Ref:         fmt.Sprintf("%s/%s#%d\n", projectOwner, projectRepo, getInt(issue.Number)),
+		Title:       getString(issue.Title),
+		State:       getString(issue.State),
+		Assignee:    getUserLogin(issue.Assignee),
+		Closed:      getTime(issue.ClosedAt),
+		Labels:      getLabelNames(issue.Labels),
+		Milestone:   getMilestoneTitle(issue.Milestone),
+		URL:         fmt.Sprintf("https://github.com/%s/%s/issues/%d\n", projectOwner, projectRepo, getInt(issue.Number)),
+		Reporter:    getUserLogin(issue.User),
+		Created:     getTime(issue.CreatedAt),
+		Updated:     getTime(issue.UpdatedAt),
+		Text:        getString(issue.Body),
+		Comments:    []*Comment{},
+		Assignees:   getUserLogins(issue.Assignees),
+		NumComments: getInt(issue.Comments),
 	}
 	if j.Labels == nil {
 		j.Labels = []string{}
