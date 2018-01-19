@@ -234,6 +234,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -347,7 +348,7 @@ func main() {
 }
 
 func showIssue(w io.Writer, n int) (*github.Issue, error) {
-	issue, _, err := client.Issues.Get(projectOwner, projectRepo, n)
+	issue, _, err := client.Issues.Get(context.Background(), projectOwner, projectRepo, n)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +383,7 @@ func printIssue(w io.Writer, issue *github.Issue) error {
 	}
 
 	for page := 1; ; {
-		list, resp, err := client.Issues.ListComments(projectOwner, projectRepo, getInt(issue.Number), &github.IssueListCommentsOptions{
+		list, resp, err := client.Issues.ListComments(context.Background(), projectOwner, projectRepo, getInt(issue.Number), &github.IssueListCommentsOptions{
 			ListOptions: github.ListOptions{
 				Page:    page,
 				PerPage: 100,
@@ -443,7 +444,7 @@ func searchIssues(q string) ([]*github.Issue, error) {
 	var all []*github.Issue
 	for page := 1; ; {
 		// TODO(rsc): Rethink excluding pull requests.
-		x, resp, err := client.Search.Issues("type:issue state:open repo:"+*project+" "+q, &github.SearchOptions{
+		x, resp, err := client.Search.Issues(context.Background(), "type:issue state:open repo:"+*project+" "+q, &github.SearchOptions{
 			ListOptions: github.ListOptions{
 				Page:    page,
 				PerPage: 100,
@@ -545,7 +546,7 @@ func listRepoIssues(opt github.IssueListByRepoOptions) ([]*github.Issue, error) 
 			Page:    page,
 			PerPage: 100,
 		}
-		issues, resp, err := client.Issues.ListByRepo(projectOwner, projectRepo, &xopt)
+		issues, resp, err := client.Issues.ListByRepo(context.Background(), projectOwner, projectRepo, &xopt)
 		for i := range issues {
 			updateIssueCache(issues[i])
 			all = append(all, issues[i])
@@ -572,7 +573,7 @@ func listRepoIssues(opt github.IssueListByRepoOptions) ([]*github.Issue, error) 
 
 func loadMilestones() ([]*github.Milestone, error) {
 	// NOTE(rsc): There appears to be no paging possible.
-	all, _, err := client.Issues.ListMilestones(projectOwner, projectRepo, &github.MilestoneListOptions{
+	all, _, err := client.Issues.ListMilestones(context.Background(), projectOwner, projectRepo, &github.MilestoneListOptions{
 		State: "open",
 	})
 	if err != nil {
@@ -728,7 +729,7 @@ func bulkReadIssuesCached(ids []int) ([]*github.Issue, error) {
 	var errbuf bytes.Buffer
 	for i, id := range ids {
 		if all[i] == nil {
-			issue, _, err := client.Issues.Get(projectOwner, projectRepo, id)
+			issue, _, err := client.Issues.Get(context.Background(), projectOwner, projectRepo, id)
 			if err != nil {
 				fmt.Fprintf(&errbuf, "reading #%d: %v\n", id, err)
 				continue
@@ -822,7 +823,7 @@ func toJSON(issue *github.Issue) *Issue {
 func toJSONWithComments(issue *github.Issue) *Issue {
 	j := toJSON(issue)
 	for page := 1; ; {
-		list, resp, err := client.Issues.ListComments(projectOwner, projectRepo, getInt(issue.Number), &github.IssueListCommentsOptions{
+		list, resp, err := client.Issues.ListComments(context.Background(), projectOwner, projectRepo, getInt(issue.Number), &github.IssueListCommentsOptions{
 			ListOptions: github.ListOptions{
 				Page:    page,
 				PerPage: 100,

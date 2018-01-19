@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -158,7 +159,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 	if getInt(old.Number) == 0 {
 		comment := strings.TrimSpace(sdata[off:])
 		edit.Body = &comment
-		issue, _, err := client.Issues.Create(projectOwner, projectRepo, &edit)
+		issue, _, err := client.Issues.Create(context.Background(), projectOwner, projectRepo, &edit)
 		if err != nil {
 			fmt.Fprintf(&errbuf, "error creating issue: %v\n", err)
 			return nil, nil
@@ -187,7 +188,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 	var failed bool
 	var did []string
 	if comment != "" {
-		_, _, err := client.Issues.CreateComment(projectOwner, projectRepo, getInt(old.Number), &github.IssueComment{
+		_, _, err := client.Issues.CreateComment(context.Background(), projectOwner, projectRepo, getInt(old.Number), &github.IssueComment{
 			Body: &comment,
 		})
 		if err != nil {
@@ -199,7 +200,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 	}
 
 	if edit.Title != nil || edit.State != nil || edit.Assignee != nil || edit.Labels != nil || edit.Milestone != nil {
-		_, _, err := client.Issues.Edit(projectOwner, projectRepo, getInt(old.Number), &edit)
+		_, _, err := client.Issues.Edit(context.Background(), projectOwner, projectRepo, getInt(old.Number), &edit)
 		if err != nil {
 			fmt.Fprintf(&errbuf, "error changing metadata: %v\n", err)
 			failed = true
@@ -208,7 +209,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 		}
 	}
 	if len(addLabels) > 0 {
-		_, _, err := client.Issues.AddLabelsToIssue(projectOwner, projectRepo, getInt(old.Number), addLabels)
+		_, _, err := client.Issues.AddLabelsToIssue(context.Background(), projectOwner, projectRepo, getInt(old.Number), addLabels)
 		if err != nil {
 			fmt.Fprintf(&errbuf, "error adding labels: %v\n", err)
 			failed = true
@@ -222,7 +223,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 	}
 	if len(removeLabels) > 0 {
 		for _, label := range removeLabels {
-			_, err := client.Issues.RemoveLabelForIssue(projectOwner, projectRepo, getInt(old.Number), label)
+			_, err := client.Issues.RemoveLabelForIssue(context.Background(), projectOwner, projectRepo, getInt(old.Number), label)
 			if err != nil {
 				fmt.Fprintf(&errbuf, "error removing label %s: %v\n", label, err)
 				failed = true
@@ -480,9 +481,7 @@ func bulkWriteIssue(old *github.Issue, updated []byte, status func(string)) (ids
 			}
 			status(fmt.Sprintf("updated %d/%d issues; pausing %d minutes to respect GitHub rate limit", index, len(ids), int(delta/time.Minute)))
 			time.Sleep(delta)
-			if _, _, err := client.RateLimit(); err != nil {
-				status(fmt.Sprintf("reading rate limit: %v", err))
-			}
+			// API calls in github.Client now read rate limits themselves.
 		}
 		*old.Number = number
 		if _, err := writeIssue(old, updated, true); err != nil {
