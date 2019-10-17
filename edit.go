@@ -112,6 +112,7 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 	off := 0
 	var edit github.IssueRequest
 	var addLabels, removeLabels []string
+	var addProjectColIDs []int64
 	for _, line := range strings.SplitAfter(sdata, "\n") {
 		off += len(line)
 		line = strings.TrimSpace(line)
@@ -143,6 +144,18 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 
 		case strings.HasPrefix(line, "Milestone:"):
 			edit.Milestone = findMilestone(&errbuf, diff(line, "Milestone:", getMilestoneTitle(old.Milestone)))
+
+		case strings.HasPrefix(line, "Project (column ids, append only):"):
+			line := strings.TrimSpace(strings.TrimPrefix(line, "Project (column ids, append only):"))
+			ids := strings.Fields(line)
+			addProjectColIDs = make([]int64, len(ids))
+			for i, id := range ids {
+				addProjectColIDs[i], err = strconv.ParseInt(id, 10, 32)
+				if err != nil {
+					fmt.Fprintf(&errbuf, "error parsing issue project id: %v\n", err)
+					return nil, nil
+				}
+			}
 
 		case strings.HasPrefix(line, "URL:"):
 			continue
@@ -230,6 +243,19 @@ func writeIssue(old *github.Issue, updated []byte, isBulk bool) (issue *github.I
 			} else {
 				did = append(did, "removed label "+label)
 			}
+		}
+	}
+
+	for _, columnID := range addProjectColIDs {
+		_, _, err := client.Projects.CreateProjectCard(context.Background(), columnID, &github.ProjectCardOptions{
+			ContentID:   *old.ID,
+			ContentType: "Issue",
+		})
+		if err != nil {
+			fmt.Fprintf(&errbuf, "error adding issue to project column %v: %v\n", columnID, err)
+			failed = true
+		} else {
+			did = append(did, fmt.Sprintf("added to project column %v", columnID))
 		}
 	}
 
@@ -321,35 +347,29 @@ func findMilestone(w io.Writer, name *string) *int {
 	return nil
 }
 
-func readBulkIDs(text []byte) []int {
-	var ids []int
+func readBulkIDs(text []byte) ([]int, []int64) {
+	var numbers []int
+	var ids []int64
+	fmt.Println(string(text))
 	for _, line := range strings.Split(string(text), "\n") {
-		if i := strings.Index(line, "\t"); i >= 0 {
-			line = line[:i]
-		}
-		if i := strings.Index(line, " "); i >= 0 {
-			line = line[:i]
-		}
-		n, err := strconv.Atoi(line)
-		if err != nil {
+		fmt.Println(line)
+		idStrings := strings.Split(line, "\t")
+		if len(idStrings) < 2 {
 			continue
 		}
-		ids = append(ids, n)
+		fmt.Println(idStrings)
+		number, err := strconv.Atoi(idStrings[0])
+		if err != nil {
+			panic(err)
+		}
+		numbers = append(numbers, number)
+		id, err := strconv.Atoi(idStrings[1])
+		if err != nil {
+			panic(err)
+		}
+		ids = append(ids, int64(id))
 	}
-	return ids
-}
-
-func bulkEditStartFromText(content []byte) (base *github.Issue, original []byte, err error) {
-	ids := readBulkIDs(content)
-	if len(ids) == 0 {
-		return nil, nil, fmt.Errorf("found no issues in selection")
-	}
-	issues, err := bulkReadIssuesCached(ids)
-	if err != nil {
-		return nil, nil, err
-	}
-	base, original = bulkEditStart(issues)
-	return base, original, nil
+	return numbers, ids
 }
 
 func suffix(n int) string {
@@ -404,10 +424,11 @@ func bulkEditStart(issues []*github.Issue) (*github.Issue, []byte) {
 	fmt.Fprintf(&buf, "Assignee: %s\n", getUserLogin(common.Assignee))
 	fmt.Fprintf(&buf, "Labels: %s\n", strings.Join(getLabelNames(common.Labels), " "))
 	fmt.Fprintf(&buf, "Milestone: %s\n", getMilestoneTitle(common.Milestone))
+	fmt.Fprintf(&buf, "Project (column ids, append only):\n")
 	fmt.Fprintf(&buf, "\n<optional comment here>\n")
 	fmt.Fprintf(&buf, "%s\n", bulkHeader)
 	for _, issue := range issues {
-		fmt.Fprintf(&buf, "%d\t%s\n", getInt(issue.Number), getString(issue.Title))
+		fmt.Fprintf(&buf, "%d\t%d\t%s\n", getInt(issue.Number), *issue.ID, getString(issue.Title))
 	}
 
 	return common, buf.Bytes()
@@ -442,10 +463,12 @@ func bulkWriteIssue(old *github.Issue, updated []byte, status func(string)) (ids
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find bulk edit issue list")
 	}
-	ids = readBulkIDs(updated[i:])
+	var contentIds []int64
+	ids, contentIds = readBulkIDs(updated[i+1:])
 	if len(ids) == 0 {
 		return nil, fmt.Errorf("found no issues in bulk edit issue list")
 	}
+	fmt.Println(ids, contentIds)
 
 	// Make a copy of the issue to modify.
 	x := *old
@@ -454,6 +477,8 @@ func bulkWriteIssue(old *github.Issue, updated []byte, status func(string)) (ids
 	// Try a write to issue -1, checking for formatting only.
 	old.Number = new(int)
 	*old.Number = -1
+	old.ID = new(int64)
+	*old.ID = -1
 	if _, err := writeIssue(old, updated, true); err != nil {
 		return nil, err
 	}
@@ -484,6 +509,7 @@ func bulkWriteIssue(old *github.Issue, updated []byte, status func(string)) (ids
 			// API calls in github.Client now read rate limits themselves.
 		}
 		*old.Number = number
+		*old.ID = contentIds[index]
 		if _, err := writeIssue(old, updated, true); err != nil {
 			status(fmt.Sprintf("writing #%d: %s", number, strings.Replace(err.Error(), "\n", "\n\t", -1)))
 			failed = true

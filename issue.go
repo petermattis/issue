@@ -372,6 +372,7 @@ func printIssue(w io.Writer, issue *github.Issue) error {
 	}
 	fmt.Fprintf(w, "Labels: %s\n", strings.Join(getLabelNames(issue.Labels), " "))
 	fmt.Fprintf(w, "Milestone: %s\n", getMilestoneTitle(issue.Milestone))
+	fmt.Fprintf(w, "Project (column ids, append only):\n")
 	fmt.Fprintf(w, "URL: https://github.com/%s/%s/issues/%d\n", projectOwner, projectRepo, getInt(issue.Number))
 
 	fmt.Fprintf(w, "\nReported by %s (%s)\n", getUserLogin(issue.User), getTime(issue.CreatedAt).Format(timeFormat))
